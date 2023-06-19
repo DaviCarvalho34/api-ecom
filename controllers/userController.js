@@ -124,7 +124,7 @@ const getUser = asyncHandler(async (req, res) => {
     validateMongoDbId(id);
 
     try {
-        const getUser = await User.findById(id);    
+        const getUser = await User.findById(id).populate("wishlist");    
         res.json({
             getUser,
         });

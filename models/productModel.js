@@ -1,3 +1,4 @@
+const { Schema } = require('mongoose');
 const mongoose = require('mongoose'); // Erase if already required
 
 // Declare the Schema of the Mongo model
@@ -21,14 +22,8 @@ var ProductSchema = new mongoose.Schema({
         type: Number,
         required: true,
       },
-      category: {
-        type: String,    
-        required: true,
-      },
-      brand: {
-        type: String,
-        required: true,
-      },
+      category: { type: Schema.Types.ObjectId, ref: 'Category', required: true },
+      brand: { type: Schema.Types.ObjectId, ref: 'Brand', required: true },
       quantity: {
         type: Number,
         required: true,
