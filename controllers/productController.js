@@ -105,7 +105,6 @@ const addToWihslist = asyncHandler(async (req, res) => {
     const user = await User.findById(_id);
     const alreadyadded = user.wishlist.find((id) => id.toString() === prodId);
     if(alreadyadded) {
-      console.log("ok")
       let user = await User.findByIdAndUpdate(
         _id,
         {
@@ -133,6 +132,83 @@ const addToWihslist = asyncHandler(async (req, res) => {
   }
 });
 
+const addToCart = asyncHandler(async (req,res) => {
+  const { _id } = req.user;
+  const { prodId } = req.body;
+  try {
+    const user = await User.findById(_id);
+    const productsIds = await user.cart.prodId;
+    const products = await Product.find({ _id: { $in: productsIds } });
+    
+    
+    const alreadyadded = user.cart.prodId.find((id) => id.toString() === prodId);
+ 
+    if(alreadyadded) {
+      
+       const updateCart = await User.findByIdAndUpdate(
+        _id, 
+        {
+          $pull: {
+            'cart.prodId':prodId
+          }
+        },
+        
+        { new: true }
+       )
+      const prices = products.map((products) => products.price);
+
+      const actualProduct = products.map((products) => {
+        if(products.id === prodId) {
+          return products.price;
+        }
+      });
+
+      const totalPrice = prices.reduce((accumulator, currentValue) => {
+        if (typeof currentValue === 'number' && !isNaN(currentValue)) {
+          return accumulator + currentValue;
+        }
+        return accumulator;
+      }, 0);
+      console.log(totalPrice - actualProduct);
+        
+       res.json(updateCart);
+    } else {
+      const updateCart = await User.findByIdAndUpdate(
+        _id,
+        {
+          $push: {
+            'cart.prodId':prodId
+          }
+        },
+        { new: true }
+      )
+
+
+      const prices = products.map((products) => products.price);
+      
+      const actualProduct = products.map((products) => {
+        if(products.id === prodId) {
+          return products.price;
+        }
+      });
+     
+
+      const totalPrice = prices.reduce((accumulator, currentValue) => {
+        if (typeof currentValue === 'number' && !isNaN(currentValue)) {
+          return accumulator + currentValue;
+        }
+        return accumulator;
+      }, 0);
+      console.log(totalPrice + actualProduct);
+    
+      res.json(updateCart);
+    }
+
+  } catch (error) {
+    throw new Error(error);
+  }
+})
+
 const rating = asyncHandler(async (req,res) => {
   const { _id } = req.user;
   const { star, prodId, comment } = req.body;
@@ -154,7 +230,6 @@ const rating = asyncHandler(async (req,res) => {
           new: true,
         }
       )
-      res.json(updateRating);
     } else {
       const rateProduct = await Product.findByIdAndUpdate(
         prodId,
@@ -170,13 +245,23 @@ const rating = asyncHandler(async (req,res) => {
         {
           new: true,
         }
-      )
-      res.json(rateProduct);
+      )     
     }
+    const getAllratings = await Product.findById(prodId);
+    let totalRating = getAllratings.ratings.length;
+    let ratingsum = getAllratings.ratings.map((item) => item.star).reduce((prev, curr) => prev + curr, 0);
+    let actualRating = Math.round(ratingsum / totalRating);
+    let finalproduct = await Product.findByIdAndUpdate(prodId, 
+      {
+        totalrating: actualRating,
+      },
+      { new: true }
+    );
+    res.json(finalproduct);
   } catch (error) {
     throw new Error(error);
   }
 });
 
 
-module.exports = { createProduct, getProduct, getAllProduct, updateProduct, deleteProduct, addToWihslist, rating }
+module.exports = { createProduct, getProduct, getAllProduct, updateProduct, deleteProduct, addToWihslist, rating, addToCart }

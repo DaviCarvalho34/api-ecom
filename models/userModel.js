@@ -29,10 +29,13 @@ var userSchema = new mongoose.Schema({
         type:Boolean,
         defalut: false
     },
-    cart: {
-        type: Array,
-        default: []
-    },
+    cart: 
+    {
+        prodId:[{ type: mongoose.Schema.Types.ObjectId, ref: "Product" }],
+        total: Number,
+        finalValue: Number,
+    }
+    ,
     address: {
         type: String
     },
