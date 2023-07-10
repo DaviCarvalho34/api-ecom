@@ -29,13 +29,30 @@ var userSchema = new mongoose.Schema({
         type:Boolean,
         defalut: false
     },
-    cart: 
-    {
-        prodId:[{ type: mongoose.Schema.Types.ObjectId, ref: "Product" }],
-        total: Number,
-        finalValue: Number,
-    }
-    ,
+    cart: [
+        {
+            product: {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: "Product",
+            },
+            qty: Number,   
+            couponApplied: {
+                
+                type: Boolean,
+                default: false,
+               
+            },       
+        },
+        
+    ],
+    
+    totalCartPrice: {
+        type: Number,
+        default: 0,
+      },
+
+    
+     
     address: {
         type: String
     },

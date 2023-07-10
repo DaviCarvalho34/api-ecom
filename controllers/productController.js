@@ -1,8 +1,10 @@
 const Product = require('../models/productModel.js');
 const User = require("../models/userModel.js");
+const Coupon =  require("../models/couponModel.js");
 const asyncHandler = require('express-async-handler');
 const slugify = require('slugify');
 const validateMongoDbId = require('../utils/validateMongodbid.js');
+const { cloudinaryUploadImg } = require('../utils/cloudinary.js');
 
 
 const createProduct = asyncHandler(async (req, res) => {
@@ -132,82 +134,161 @@ const addToWihslist = asyncHandler(async (req, res) => {
   }
 });
 
-const addToCart = asyncHandler(async (req,res) => {
+const addToCart = asyncHandler(async (req, res) => {
   const { _id } = req.user;
   const { prodId } = req.body;
   try {
     const user = await User.findById(_id);
-    const productsIds = await user.cart.prodId;
-    const products = await Product.find({ _id: { $in: productsIds } });
-    
-    
-    const alreadyadded = user.cart.prodId.find((id) => id.toString() === prodId);
- 
-    if(alreadyadded) {
-      
-       const updateCart = await User.findByIdAndUpdate(
-        _id, 
-        {
-          $pull: {
-            'cart.prodId':prodId
-          }
-        },
-        
-        { new: true }
-       )
-      const prices = products.map((products) => products.price);
 
-      const actualProduct = products.map((products) => {
-        if(products.id === prodId) {
-          return products.price;
-        }
-      });
+    // Verificar se o produto já está no carrinho
+    const cartItem = user.cart.find(item => item.product.toString() === prodId);
 
-      const totalPrice = prices.reduce((accumulator, currentValue) => {
-        if (typeof currentValue === 'number' && !isNaN(currentValue)) {
-          return accumulator + currentValue;
-        }
-        return accumulator;
-      }, 0);
-      console.log(totalPrice - actualProduct);
-        
-       res.json(updateCart);
+    if (cartItem) {
+      // Se o produto já está no carrinho, atualize a quantidade
+      cartItem.qty += 1;
     } else {
-      const updateCart = await User.findByIdAndUpdate(
-        _id,
-        {
-          $push: {
-            'cart.prodId':prodId
-          }
-        },
-        { new: true }
-      )
-
-
-      const prices = products.map((products) => products.price);
-      
-      const actualProduct = products.map((products) => {
-        if(products.id === prodId) {
-          return products.price;
-        }
+      // Se o produto não está no carrinho, adicione-o com quantidade 1
+      user.cart.push({
+        product: prodId,
+        qty: 1,
       });
-     
-
-      const totalPrice = prices.reduce((accumulator, currentValue) => {
-        if (typeof currentValue === 'number' && !isNaN(currentValue)) {
-          return accumulator + currentValue;
-        }
-        return accumulator;
-      }, 0);
-      console.log(totalPrice + actualProduct);
-    
-      res.json(updateCart);
     }
 
+    // Atualizar o preço total do carrinho
+    let totalCartPrice = 0;
+
+    for (const item of user.cart) {
+      const product = await Product.findById(item.product);
+      totalCartPrice += item.qty * product.price;
+    }
+
+    user.totalCartPrice = totalCartPrice;
+
+    await user.save();
+
+    res.json(user.cart);
   } catch (error) {
     throw new Error(error);
   }
-})
+});
+
+const removeFromCart = asyncHandler(async (req, res) => {
+  const { _id } = req.user;
+  const { prodId } = req.body;
+  try {
+    const user = await User.findById(_id);
+
+    // Encontrar o índice do produto no carrinho
+    const productIndex = user.cart.findIndex(item => item.product.toString() === prodId);
+
+    if (productIndex !== -1) {
+      // Remover o produto do carrinho
+      user.cart.splice(productIndex, 1);
+
+      // Atualizar o preço total do carrinho
+      let totalCartPrice = 0;
+
+      for (const item of user.cart) {
+        const product = await Product.findById(item.product);
+        totalCartPrice += item.qty * product.price;
+      }
+
+      user.totalCartPrice = totalCartPrice;
+
+      await user.save();
+
+      res.json(user.cart);
+    } else {
+      res.status(404).json({ message: 'Produto não encontrado no carrinho' });
+    }
+  } catch (error) {
+    throw new Error(error);
+  }
+});
+
+
+
+
+
+const applyCoupon = asyncHandler(async (req, res) => {
+  const { coupon } = req.body;
+  const { _id } = req.user;
+  validateMongoDbId(_id);
+  const validCoupon = await Coupon.findOne({ name: coupon });
+  if (validCoupon === null) {
+    throw new Error("Invalid Coupon");
+  }
+  const user = await User.findOne({ _id });
+
+  // Verificar se o cupom já está aplicado
+  const isCouponApplied = user.cart.some((item) => item.couponApplied === true);
+  console.log(isCouponApplied)
+  if (isCouponApplied) {
+    // O cupom já está aplicado, não faz nada
+    res.json({ message: "Coupon already applied" });
+    return;
+  }
+
+  let totalAfterDiscount = (
+    user.totalCartPrice - (user.totalCartPrice * validCoupon.discount) / 100
+  ).toFixed(2);
+
+  const updateTotal = await User.findByIdAndUpdate(
+    _id,
+    {
+      totalCartPrice: Number(totalAfterDiscount),
+      $set: { "cart.$[elem].couponApplied": true },
+    },
+    {
+      arrayFilters: [{ "elem.couponApplied": false }],
+      new: true,
+    }
+  );
+  
+  res.json(updateTotal);
+});
+
+const removeCoupon = asyncHandler(async (req, res) => {
+  const { coupon } = req.body;
+  const { _id } = req.user;
+  validateMongoDbId(_id);
+  const validCoupon = await Coupon.findOne({ name: coupon });
+  if (validCoupon === null) {
+    throw new Error("Invalid Coupon");
+  }
+  const user = await User.findOne({ _id });
+
+  // Verificar se o cupom já está removido
+  const isCouponApplied = user.cart.some((item) => item.couponApplied === true);
+  if (!isCouponApplied) {
+    // O cupom já está removido, não faz nada
+    res.json({ message: "Coupon already removed" });
+    return;
+  }
+
+  let totalAfterDiscount = user.totalCartPrice; // Inicializa com o valor original
+
+  if (validCoupon.discount > 0) {
+    // Calcula o novo total removendo o desconto do cupom
+    totalAfterDiscount = (
+      user.totalCartPrice + (user.totalCartPrice * validCoupon.discount) / 100
+    ).toFixed(2);
+  }
+
+  const updateTotal = await User.findByIdAndUpdate(
+    _id,
+    {
+      totalCartPrice: Number(totalAfterDiscount),
+      $set: { "cart.$[elem].couponApplied": false },
+    },
+    {
+      arrayFilters: [{ "elem.couponApplied": true }],
+      new: true,
+    }
+  );
+
+  res.json(updateTotal);
+});
 
 const rating = asyncHandler(async (req,res) => {
   const { _id } = req.user;
@@ -263,5 +344,35 @@ const rating = asyncHandler(async (req,res) => {
   }
 });
 
+const uploadImages = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  validateMongoDbId(id);
 
-module.exports = { createProduct, getProduct, getAllProduct, updateProduct, deleteProduct, addToWihslist, rating, addToCart }
+  try {
+    const uploader = (path) => cloudinaryUploadImg(path);
+    const urls = [];
+    const files = req.files;
+
+    for (const file of files) {
+      const { path } = file;  
+      const newpath = await uploader(path);
+      console.log(file);
+      urls.push(newpath);
+    }
+
+    const findProduct = await Product.findByIdAndUpdate(id, {
+      images: urls.map((file) => file),
+    }, {
+      new: true,
+    });
+
+    res.json(findProduct);
+  } catch (error) {
+    throw new Error(error);
+  }
+});
+
+
+
+
+module.exports = { createProduct, getProduct, getAllProduct, updateProduct, deleteProduct, addToWihslist, rating, addToCart, removeFromCart, applyCoupon, removeCoupon, uploadImages }

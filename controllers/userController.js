@@ -238,5 +238,22 @@ const resetPassword = asyncHandler(async (req, res) => {
     res.json(user);
   });
 
+  const getCart = asyncHandler(async (req,res) => {
+    const { _id } = req.user;
 
-module.exports = { createUser, loginUser, getAllUser, getUser, deleteUser, updateUser, blockUser, unblockUser, handleRefreshToken, logout, updatePassword, forgotPasswordToken, resetPassword  };
+    try {
+        
+        const getCart = await User.findById(_id);
+        const { cart } = getCart;
+        
+        res.json(cart);
+
+    } catch (error) {
+        throw new Error(error);
+    }
+  });
+
+
+
+
+module.exports = { createUser, loginUser, getAllUser, getUser, deleteUser, updateUser, blockUser, unblockUser, handleRefreshToken, logout, updatePassword, forgotPasswordToken, resetPassword,getCart };
