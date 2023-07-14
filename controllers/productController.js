@@ -78,9 +78,9 @@ const getAllProduct = asyncHandler(async (req, res) => {
         if (req.query.fields) {
           const fields = req.query.fields.split(",").join(" ");
           
-          query = query.select(fields);
+          query = query.select(fields).populate("category");
         } else {
-          query = query.select("-__v");
+          query = query.select("-__v").populate("category");
         }
 
         const page = req.query.page;
