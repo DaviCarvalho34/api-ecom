@@ -8,7 +8,7 @@ const storage = multer.diskStorage({
   },
   filename: function (req, file, cb) {
     const uniquesuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    cb(null, file.fieldname + "-" + uniquesuffix + ".jpeg");
+    cb(null, file.fieldname + "-" + uniquesuffix + ".png");
   },
 });
 
@@ -41,11 +41,7 @@ const productImgResize = async (req, res, next) => {
           `../public/images/${resizedFileName}`
         );
 
-        await sharp(filePath)
-          .resize(300, 300)
-          .toFormat("jpeg")
-          .jpeg({ quality: 90 })
-          .toFile(resizedFilePath);
+        await sharp(filePath).toFormat("png").toFile(resizedFilePath);
 
         fs.unlinkSync(filePath); // Remove o arquivo original
         file.path = resizedFilePath;
